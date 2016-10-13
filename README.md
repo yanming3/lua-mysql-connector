@@ -11,8 +11,13 @@ lua-mysql-connector是一个访问lua语言版本的mysql客户端访问类库,�
 3. 支持嵌入式服务器
 
 ## 实现思路
- 通过luajit的ffi调用mysql官方的c connector实现，因此需要先安装好[c connector](http://dev.mysql.com/downloads/connector/c/)之后才能运行；
+ 通过luajit的ffi调用mysql官方的c connector实现，因此需要先安装好[c connector](http://dev.mysql.com/downloads/connector/c/)之后才能运行；通常情况下，mysql c connector类库位于/usr/lib64/mysql/，需要修改环境变量：
  
+ ```bash
+ LD_LIBRARY_PATH=/usr/lib64/mysql/:$LD_LIBRARY_PATH  
+ ```
+
+export LD_LIBRARY_PATH
 ## 代码样例
  
 ```lua
