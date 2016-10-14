@@ -15,6 +15,11 @@ typedef void MYSQL_STMT;
 typedef void NET;
 
 enum {
+  MYSQL_NO_DATA = 100,
+  MYSQL_DATA_TRUNCATED = 101
+};
+
+enum {
   MYSQL_NOT_NULL_FLAG = 1,     /* Field can't be NULL */
   MYSQL_PRI_KEY_FLAG = 2,      /* Field is part of a primary key */
   MYSQL_UNIQUE_KEY_FLAG = 4,   /* Field is part of a unique key */

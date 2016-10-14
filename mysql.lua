@@ -4,40 +4,32 @@ local ffi=require("ffi")
 local bit = require'bit'
 require("header")
 local clib=ffi.load(ffi.abi'win' and 'libmysql' or 'mysqlclient')
-ffi.cdef('double strtod(const char*, char**);')
+local C=ffi.C
 --local clib=ffi.load(ffi.abi'win' and 'libmariadb' or 'mariadb')
 local _M = { _VERSION = '0.16' }
 local mt = { __index = _M }
 
 local types_mapping = {
-    [ffi.C.MYSQL_TYPE_VAR_STRING]= 'uint8_t[?]',
-    [ffi.C.MYSQL_TYPE_STRING]    = 'uint8_t[?]',
-	[ffi.C.MYSQL_TYPE_VARCHAR]   = 'uint8_t[?]',
-	[ffi.C.MYSQL_TYPE_TINY]      = 'int8_t[1]',
-	[ffi.C.MYSQL_TYPE_SHORT]     = 'int16_t[1]',
-	[ffi.C.MYSQL_TYPE_LONG]      = 'int32_t[1]',
-	[ffi.C.MYSQL_TYPE_LONGLONG]  = 'int64_t[1]',
-	[ffi.C.MYSQL_TYPE_FLOAT]     = 'float[1]',
-	[ffi.C.MYSQL_TYPE_DOUBLE]    = 'double[1]',
-	[ffi.C.MYSQL_TYPE_NEWDECIMAL]= 'uint8_t[?]',
-	[ffi.C.MYSQL_TYPE_BIT]       = 'uint8_t[8]',
-	[ffi.C.MYSQL_TYPE_TIME]  = 'MYSQL_TIME',
-	[ffi.C.MYSQL_TYPE_DATE]  = 'MYSQL_TIME',
-	[ffi.C.MYSQL_TYPE_TIMESTAMP]  = 'MYSQL_TIME',
-	[ffi.C.MYSQL_TYPE_DATETIME]  = 'MYSQL_TIME',
+    [C.MYSQL_TYPE_VAR_STRING]= 'uint8_t[?]',
+    [C.MYSQL_TYPE_STRING]    = 'uint8_t[?]',
+	[C.MYSQL_TYPE_VARCHAR]   = 'uint8_t[?]',
+	[C.MYSQL_TYPE_TINY]      = 'int8_t[1]',
+	[C.MYSQL_TYPE_SHORT]     = 'int16_t[1]',
+	[C.MYSQL_TYPE_LONG]      = 'int32_t[1]',
+	[C.MYSQL_TYPE_INT24]       = 'int32_t[1]',
+	[C.MYSQL_TYPE_LONGLONG]  = 'int64_t[1]',
+	[C.MYSQL_TYPE_FLOAT]     = 'float[1]',
+	[C.MYSQL_TYPE_DOUBLE]    = 'double[1]',
+	[C.MYSQL_TYPE_NEWDECIMAL]= 'uint8_t[?]',
+	[C.MYSQL_TYPE_BIT]       = 'uint8_t[8]',
+	[C.MYSQL_TYPE_TIME]  = 'MYSQL_TIME',
+	[C.MYSQL_TYPE_DATE]  = 'MYSQL_TIME',
+	[C.MYSQL_TYPE_TIMESTAMP]  = 'MYSQL_TIME',
+	[C.MYSQL_TYPE_DATETIME]  = 'MYSQL_TIME',
 }
 
 local function checkNull(obj)
 	assert(obj,"please initialize before use!")
-end
-
-local function is_string(c_type)
-	if c_type==ffi.C.MYSQL_TYPE_VARCHAR or c_type==ffi.C.MYSQL_TYPE_VAR_STRING or c_type==ffi.C.MYSQL_TYPE_STRING 
-		or c_type==ffi.C.MYSQL_TYPE_NEWDECIMAL then
-		return true
-	else
-		return false
-	end
 end
 
 local function datetime(t)
@@ -47,7 +39,7 @@ local function datetime(t)
 								date= string.format('%04d-%02d-%02d', t.year, t.month, t.day)
 							end
 							if t.sec then
-								if frac and frac ~= 0 then
+								if t.frac and t.frac ~= 0 then
 								time= string.format('%02d:%02d:%02d.%d', t.hour, t.min, t.sec, t.frac)
 							else
 								time= string.format('%02d:%02d:%02d', t.hour, t.min, t.sec)
@@ -62,10 +54,21 @@ local function datetime(t)
 	})
 end
 
+local function is_string(c_type)
+	if c_type==C.MYSQL_TYPE_VARCHAR or c_type==C.MYSQL_TYPE_VAR_STRING or c_type==C.MYSQL_TYPE_STRING 
+		or c_type==C.MYSQL_TYPE_NEWDECIMAL then
+		return true
+	else
+		return false
+	end
+end
+
+
 local function is_number(c_type)
-	if c_type==ffi.C.MYSQL_TYPE_DOUBLE or c_type==ffi.C.MYSQL_TYPE_FLOAT 
-		or c_type==ffi.C.MYSQL_TYPE_LONG or c_type==ffi.C.MYSQL_TYPE_LONGLONG
-		or c_type==ffi.C.MYSQL_TYPE_TINY  then
+	if c_type==C.MYSQL_TYPE_DOUBLE or c_type==C.MYSQL_TYPE_FLOAT 
+		or c_type==C.MYSQL_TYPE_LONG or c_type==C.MYSQL_TYPE_LONGLONG
+		or c_type==C.MYSQL_TYPE_TINY or c_type==C.MYSQL_TYPE_INT24 
+		or c_type==C.MYSQL_TYPE_SHORT then
 		return true
 	else
 		return false
@@ -73,11 +76,37 @@ local function is_number(c_type)
 end
 
 local function is_datetime(c_type)
-	if c_type==ffi.C.MYSQL_TYPE_TIME or c_type==ffi.C.MYSQL_TYPE_DATE
-		or c_type==ffi.C.MYSQL_TYPE_TIMESTAMP or c_type==ffi.C.MYSQL_TYPE_DATETIME then
+	if c_type==C.MYSQL_TYPE_TIME or c_type==C.MYSQL_TYPE_DATE
+		or c_type==C.MYSQL_TYPE_TIMESTAMP or c_type==C.MYSQL_TYPE_DATETIME then
 		return true
 	else
 		return false
+	end
+end
+
+local function is_date(c_type)
+	if c_type==C.MYSQL_TYPE_DATE or c_type==C.MYSQL_TYPE_TIMESTAMP 
+		or c_type==C.MYSQL_TYPE_DATETIME then
+		return true
+	else
+		return false
+	end
+end
+
+local function is_time(c_type)
+	if c_type==C.MYSQL_TYPE_TIME
+		or c_type==C.MYSQL_TYPE_TIMESTAMP or c_type==C.MYSQL_TYPE_DATETIME then
+		return true
+	else
+		return false
+	end
+end
+
+local function handle_stmt_error(ok,stmt)
+	if not ok then
+	    local errmsg=ffi.string(clib.mysql_stmt_error(stmt))
+		local errno=tonumber(clib.mysql_stmt_errno(stmt))
+		error("Error Code:"..errno.."."..errmsg)
 	end
 end
 
@@ -115,8 +144,7 @@ local function fill_parameter(param,t,v,need_size)
 end
 
 function _M.new(self)
-	local sock=clib.mysql_init(nil)
-	--ffi.gc(sock,clib.mysql_close)
+	local sock=ffi.gc(clib.mysql_init(nil),clib.mysql_close)
 	return setmetatable({sock=sock,status="init"},mt)
 end
 
@@ -142,14 +170,10 @@ end
 function _M.query(self,sql)
 	checkNull(self.sock)
 	local ok=tonumber(clib.mysql_real_query(self.sock, sql,#sql))
-	
-	if ok~=0 then
-		local errmsg=ffi.string(clib.mysql_error(self.sock))
-		local errno=tonumber(clib.mysql_errno(self.sock))
-		error("Error Code:"..errno.."."..errmsg)
-	end
-	local res=clib.mysql_store_result(self.sock)
+	handle_error(ok==0,self.sock)
 
+
+	local res=ffi.gc(clib.mysql_store_result(self.sock),clib.mysql_free_result)
     local fields = clib.mysql_fetch_fields(res)
     local fieldCount = clib.mysql_num_fields(res)
    
@@ -169,19 +193,14 @@ function _M.query(self,sql)
 		row=clib.mysql_fetch_row(res)
 	end
 
-	clib.mysql_free_result(res);
+	res=nil
 	return result
 end 
 
 function _M.insert(self,sql)
 	checkNull(self.sock)
 	local ok=tonumber(clib.mysql_real_query(self.sock, sql,#sql))
-	
-	if ok~=0 then
-		local errmsg=ffi.string(clib.mysql_error(self.sock))
-		local errno=tonumber(clib.mysql_errno(self.sock))
-		error("Error Code:"..errno.."."..errmsg)
-	end
+	handle_error(ok==0,self.sock)
 
 	local id=clib.mysql_insert_id(self.sock)
 	local affected=clib.mysql_affected_rows(self.sock)
@@ -191,12 +210,7 @@ end
 function _M.update(self,sql)
 	checkNull(self.sock)
 	local ok=tonumber(clib.mysql_real_query(self.sock, sql,#sql))
-	
-	if ok~=0 then
-		local errmsg=ffi.string(clib.mysql_error(self.sock))
-		local errno=tonumber(clib.mysql_errno(self.sock))
-		error("Error Code:"..errno.."."..errmsg)
-	end
+	handle_error(ok==0,self.sock)
 
 	local affected=clib.mysql_affected_rows(self.sock)
 	return tonumber(affected)
@@ -209,12 +223,12 @@ function _M.set_character_set(self,charset_name)
 end
 
 
-
 function _M.prepare_stmt(self,sql)
 	local stmt=ffi.gc(clib.mysql_stmt_init(self.sock),clib.mysql_stmt_close)
-	--ffi.gc(stmt,clib.mysql_stmt_close)
-	local prepared_sql=ffi.cast("const char*",sql)
-	local ok=tonumber(clib.mysql_stmt_prepare(stmt,prepared_sql,#sql))
+	
+	local prepared_sql=ffi.new("uint8_t[?]",#sql)
+	ffi.copy(prepared_sql,sql,#sql)
+	local ok=tonumber(clib.mysql_stmt_prepare(stmt,prepared_sql,ffi.sizeof(prepared_sql)))
 	handle_error(ok==0,self.sock)
 
 	local param_count=tonumber(clib.mysql_stmt_param_count(stmt))
@@ -233,14 +247,15 @@ end
 function _M.set_byte(self,param_index,val)
    assert(param_index<self.param_total)
     local param=self.bind_param[param_index]
-    fill_parameter(param,ffi.C.MYSQL_TYPE_BIT,val)
+    fill_parameter(param,ffi.C.MYSQL_TYPE_TINY,val)
 end
 
 function _M.set_short(self,param_index,val)
    assert(param_index<self.param_total)
     local param=self.bind_param[param_index]
-    fill_parameter(param,ffi.C.MYSQL_TYPE_TINY,val)
+    fill_parameter(param,ffi.C.MYSQL_TYPE_SHORT,val)
 end
+
 
 function _M.set_int(self,param_index,val)
    assert(param_index<self.param_total)
@@ -272,31 +287,34 @@ function _M.set_string(self,param_index,val)
     fill_parameter(param,ffi.C.MYSQL_TYPE_STRING,val,true)
 end
 
-function _M.set_date(param_index,year, month, day)
+function _M.set_date(self,param_index,year, month, day)
 	assert(param_index<self.param_total)
     local param=self.bind_param[param_index]
     local tm=ffi.new('MYSQL_TIME')
     tm.year        = math.max(0, math.min(year  or 0, 9999)) or 0
 	tm.month       = math.max(1, math.min(month or 0, 12)) or 0
 	tm.day         = math.max(1, math.min(day   or 0, 31)) or 0
-
-	param.buffer_type=ffi.C.MYSQL_TYPE_DATE;
+    tm.time_type=C.MYSQL_TIMESTAMP_DATE
+	param.buffer_type=C.MYSQL_TYPE_DATE;
 	param.buffer=tm
-	param.is_null=ffi.cast("my_bool *","0");
+	param.is_null=ffi.new('my_bool[1]',{false})
+	param.length=ffi.new('unsigned long[1]',{0})
 end
 
 function _M.set_time(self,param_index,hour, min, sec,frac)
 	assert(param_index<self.param_total)
     local param=self.bind_param[param_index]
     local tm=ffi.new('MYSQL_TIME')
+
 	tm.hour        = math.max(0, math.min(hour  or 0, 59)) or 0
 	tm.minute      = math.max(0, math.min(min   or 0, 59)) or 0
 	tm.second      = math.max(0, math.min(sec   or 0, 59)) or 0
 	tm.second_part = math.max(0, math.min(frac  or 0, 999999)) or 0
-	tm.time_type=ffi.C.MYSQL_TIMESTAMP_TIME
-    param.buffer_type=ffi.C.MYSQL_TYPE_TIME;
+	tm.time_type=C.MYSQL_TIMESTAMP_TIME
+    param.buffer_type=C.MYSQL_TYPE_TIME;
 	param.buffer=tm
-	param.is_null=ffi.cast("my_bool *","0");
+	param.is_null=ffi.new('my_bool[1]',{false})
+	param.length=ffi.new('unsigned long[1]',{0})
 end
 
 function _M.set_timestamp(self,param_index,year, month, day, hour, min, sec, frac)
@@ -310,9 +328,9 @@ function _M.set_timestamp(self,param_index,year, month, day, hour, min, sec, fra
 	tm.hour        = math.max(0, math.min(hour  or 0, 59)) or 0
 	tm.minute      = math.max(0, math.min(min   or 0, 59)) or 0
 	tm.second      = math.max(0, math.min(sec   or 0, 59)) or 0
-	--tm.second_part = math.max(0, math.min(frac  or 0, 999999)) or 0
-	--tm.time_type=ffi.C.MYSQL_TIMESTAMP_DATETIME
-	param.buffer_type=ffi.C.MYSQL_TYPE_TIMESTAMP;
+	tm.second_part = math.max(0, math.min(frac  or 0, 999999)) or 0
+	tm.time_type=C.MYSQL_TIMESTAMP_DATETIME
+	param.buffer_type=C.MYSQL_TYPE_TIMESTAMP;
 	param.buffer=tm
 	param.is_null=ffi.new('my_bool[1]',{false})
 	param.length=ffi.new('unsigned long[1]',{0})
@@ -322,7 +340,6 @@ function _M.execute_update(self)
 	clib.mysql_stmt_bind_param(self.stmt,self.bind_param)
 	clib.mysql_stmt_execute(self.stmt)
 	local affected=tonumber(clib.mysql_stmt_affected_rows(self.stmt))
-	clib.mysql_stmt_close(self.stmt)
 	self.stmt=nil
 	self.bind_param=nil
 	self.param_total=nil
@@ -340,6 +357,7 @@ local function _bind_result(stmt)
 	local data={}
     local field_lists={}
  
+    
 	for i=0,field_nums-1,1 do
 		local info = clib.mysql_fetch_field_direct(res, i)
 
@@ -350,7 +368,7 @@ local function _bind_result(stmt)
        
 		local buffer
         if is_string(enum_info_type) then
-        	bind_result[i].buffer_type=ffi.C.MYSQL_TYPE_STRING
+        	bind_result[i].buffer_type=C.MYSQL_TYPE_STRING
         	buffer=ffi.new(info_type,field_length)
 			bind_result[i].buffer=buffer
 			bind_result[i].buffer_length=field_length
@@ -365,40 +383,55 @@ local function _bind_result(stmt)
 			bind_result[i].buffer=buffer
 			bind_result[i].buffer_length=ffi.sizeof(bind_result[i].buffer)
         end
- 
+       
 		bind_result[i].is_null=null_flags+i
 		bind_result[i].error=error_flags+i
 		bind_result[i].length=lengths+i
 		data[i]=buffer
-		field_lists[i]={type=enum_info_type,name=ffi.string(info.name, info.name_length)}
+		field_lists[i+1]={type=enum_info_type,name=ffi.string(info.name, info.name_length)}
 	end
-	
 	--clib.mysql_free_result(res);通过ffi.gc创建，不需要再次调用
 	res=nil
+	
 	return bind_result,field_lists,null_flags,lengths,data
 end
 
 function _M.execute_query(self)
-
 	clib.mysql_stmt_bind_param(self.stmt,self.bind_param)
 	
 	local bind_result,field_lists,null_flags,lengths,data=_bind_result(self.stmt)
+    
+	local ok=clib.mysql_stmt_bind_result(self.stmt,bind_result)
+	handle_stmt_error(ok==0,self.stmt)
 
-	clib.mysql_stmt_bind_result(self.stmt,bind_result)
-
-	clib.mysql_stmt_execute(self.stmt)
+	ok=clib.mysql_stmt_execute(self.stmt)
+	handle_stmt_error(ok==0,self.stmt)
    
-	local ok=clib.mysql_stmt_store_result(self.stmt)
- 
-	ok=clib.mysql_stmt_fetch(self.stmt)
-	
+	ok=clib.mysql_stmt_store_result(self.stmt)
+ 	handle_stmt_error(ok==0,self.stmt)
+  
+
 	local result={}
-	while(ok==0) do 
+	while(true) do 
+		ok=clib.mysql_stmt_fetch(self.stmt)
+		if(ok==C.MYSQL_DATA_TRUNCATED or ok==1) then
+			print("MYSQL_DATA_TRUNCATED")
+			handle_stmt_error(false,self.stmt)
+			break
+		elseif(ok==C.MYSQL_NO_DATA) then
+			print("MYSQL_NO_DATA")
+			break
+		elseif(ok~=0) then
+			print("ERROR")
+			handle_stmt_error(false,self.stmt)
+			break
+		end
+
 		local row={}
-
+        
 		for i=0,#field_lists-1 do
-			local field=field_lists[i]
-
+			local field=field_lists[i+1]
+          
 			if null_flags[i] ~= 1 then 
                
 				if is_string(field.type) then
@@ -407,20 +440,22 @@ function _M.execute_query(self)
 					row[field.name]=tonumber(data[i][0])
 				elseif is_datetime(field.type) then
 					local tm=data[i]
+			
+                    local date=is_date(field.type)
+                    local time=is_time(field.type)
 					row[field.name]=datetime({
-							year=tm.year or nil,
-							month=tm.month or nil,
-							day=tm.day or nil,
-							hour=tm.hour or nil,
-							min=tm.minute or nil,
-							sec=tm.second or nil,
-							frac=tonumber(tm.second_part) or nil
+							year=date and tm.year or nil,
+							month=date and tm.month or nil,
+							day=date and tm.day or nil,
+							hour=time and tm.hour or nil,
+							min=time and tm.minute or nil,
+							sec=time and tm.second or nil,
+							frac=time and tonumber(tm.second_part) or nil
 						})
 				end
 			end
 		end
 		table.insert(result,row)
-		ok=clib.mysql_stmt_fetch(self.stmt)
 	end
   
 	self.stmt=nil
@@ -442,7 +477,6 @@ end
 
 
 function _M.close(self)
-	clib.mysql_close(self.sock);
 	self.sock=nil
 end
 return _M
